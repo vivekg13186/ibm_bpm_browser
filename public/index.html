@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link
+        href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Material+Icons|Material+Icons+Outlined|Material+Icons+Round|Material+Icons+Sharp"
+        rel="stylesheet" type="text/css">
+    <link href="https://themify.me/wp-content/themes/themify-v32/themify-icons/themify-icons.css" rel="stylesheet"
+        type="text/css">
+    <link href="https://cdn.jsdelivr.net/npm/quasar@1.9.8/dist/quasar.min.css" rel="stylesheet" type="text/css">
+</head>
+
+<body>
+    <div id="q-app">
+        <q-layout view="hHh lpR fFf">
+
+
+            <q-drawer show-if-above side="left" bordered>
+                <div class="q-pa-md q-gutter-sm">
+                    <q-tree :nodes="treeModel" node-key="label" no-connectors />
+                </div>
+            </q-drawer>
+
+            <q-page-container>
+                <div class="q-pa-md fit column wrap justify-start items-start content-start" v-if="showSnapshotDetails">
+                    <table>
+                        <tr>
+                            <td><b>App Name : </b></td>
+                            <td>{{snapshot.app.name}}</td>
+                        </tr>
+                        <tr>
+                            <td><b>Short Name : </b></td>
+                            <td>{{snapshot.app.shortName}}</td>
+                        </tr>
+                        <tr>
+                            <td><b>Branch Name : </b></td>
+                            <td>{{snapshot.branchName}}</td>
+                        </tr>
+                        <tr>
+                            <td><b>Snapshot Name : </b></td>
+                            <td>{{snapshot.name}}</td>
+                        </tr>
+                        <tr>
+                            <td><b>ID : </b></td>
+                            <td>{{snapshot.ID}}</td>
+                        </tr>
+                    </table>
+                    <div class="row">
+                        <div class="col">
+                            <h6>Environment</h6>
+                            <q-table :data="envData" :columns="envColumns" row-key="name" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <h6>Toolkits</h6>
+                            <q-table :data="toolkitData" :columns="toolkitColumns" row-key="name" />
+                        </div>
+                    </div>
+
+
+
+                </div>
+                <div class="q-pa-md fit row wrap justify-center items-center content-start" v-if="showLogin">
+                    <h1>{{debugMsg}}</h1>
+
+                    <q-form @submit="loadTreeModel" class="q-gutter-md" style="min-width: 400px;">
+                        <q-input filled v-model="bpm_url" label="BPM URL" hint="http://host:port"></q-input>
+                        <q-input filled v-model="username" label="Username" hint="IBM BPM login name"></q-input>
+                        <q-input filled type="password" v-model="password" label="Password"></q-input>
+
+                        <div>
+                            <q-btn label="Get Details" type="submit" color="primary"></q-btn>
+                        </div>
+                    </q-form>
+
+                </div>
+            </q-page-container>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@^2.0.0/dist/vue.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quasar@1.9.8/dist/quasar.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+
+        new Vue({
+            el: '#q-app',
+            methods: {
+
+                envVar2Table(envVars) {
+                    console.log("envVar", envVars);
+                    var rows = [];
+                    if (envVars) {
+                        envVars.map((envVar) => {
+                            var values = {};
+                            envVar.varDefaults.map((i) => {
+                                values[i['type']] = i['value'];
+                            });
+                            rows.push({
+                                name: envVar.name,
+                                defaultValue: envVar['default'],
+                                development: values['development'],
+                                test: values['test'],
+                                staging: values['staging'],
+                                production: values['production']
+                            });
+                        });
+                        return rows;
+                    }
+                },
+                appObjectToTreeModel(apps) {
+                    return apps.map((app) => {
+                        app.label = app.name;
+
+                        if (app.installedSnapshots) {
+                            app.children = [];
+                            app.installedSnapshots.map((snapshot) => {
+                                snapshot.label = snapshot.name;
+                                snapshot.app = app;
+                                snapshot.expandable = false;
+                                snapshot.children = [];
+                                snapshot.handler = (ss) => {
+                                    this.snapshot = ss;
+                                    this.showSnapshotDetails = true;
+                                    this.loadSnapshotDetails(ss.ID)
+                                };
+                                app.children.push(snapshot);
+                            });
+                        }
+                        return app;
+                    });
+                },
+                loadTreeModel() {
+                    this.showLogin = false;
+                    this.loadApplication();
+                    this.loadToolkits();
+                },
+                loadSnapshotDetails(id) {
+                    var self = this;
+                    axios.post("processAppsSetting", {
+                        baseUrl: this.bpm_url,
+                        username: this.username,
+                        password: this.password,
+                        snapshotId: id
+                    }).then((res) => {
+                        var data = res.data.data;
+                        if (data) {
+                            console.log(data.projDeps);
+                            self.toolkitData = data.projDeps;
+                            self.envData = self.envVar2Table(data.envVars);
+                        }
+                    });
+                },
+                loadApplication() {
+                    var self = this;
+                    axios.post("retrieveProcessApps", {
+                        baseUrl: this.bpm_url,
+                        username: this.username,
+                        password: this.password
+                    }).then((res) => {
+                        var data = res.data.data;
+                        if (data) {
+                            self.treeModel[0].children = self.appObjectToTreeModel(data.processAppsList);
+                        }
+                    });
+                },
+                loadToolkits() {
+                    var self = this;
+                    axios.post("retrieveToolkits", {
+                        baseUrl: this.bpm_url,
+                        username: this.username,
+                        password: this.password
+                    }).then((res) => {
+                        var data = res.data.data;
+                        if (data) {
+                            self.treeModel[1].children = self.appObjectToTreeModel(data.processAppsList);
+                        }
+                    });
+                }
+            }
+            , data: function () {
+                return {
+                    toolkitColumns: [
+                        { name: 'name', label: 'Application Name', field: 'projectName', align: 'left' },
+                        { name: 'snapshot', label: 'Snapshot Name', field: 'snapshotName', align: 'left' },
+                    ],
+                    toolkitData: [],
+                    snapshot: {},
+                    showSnapshotDetails: false,
+                    showLogin: true,
+                    debugMsg: "",
+                    left: true,
+                    bpm_url: "",
+                    username: "",
+                    password: "",
+                    envColumns: [
+                        { name: 'name', label: 'Variable Name', field: 'name', align: 'left' },
+                        { name: 'defaultValue', label: 'Default', field: 'defaultValue', align: 'left' },
+                        { name: 'development', label: 'Development', field: 'development', align: 'left' },
+                        { name: 'test', label: 'Test', field: 'test', align: 'left' },
+                        { name: 'staging', label: 'Staging', field: 'staging', align: 'left' },
+                        { name: 'production', label: 'Production', field: 'production', align: 'left' },
+                    ],
+                    envData: [],
+                    treeModel: [{
+                        label: "Application", children: [
+                        ]
+                    },
+                    {
+                        label: "Toolkits", children: []
+                    }]
+                }
+            },
+        })
+    </script>
+</body>
+
+</html>
