@@ -13,17 +13,17 @@
 <body>
     <div id="q-app">
         <q-layout view="hHh lpR fFf">
-
-
             <q-drawer show-if-above side="left" bordered>
-
                 <div class="q-pa-md q-gutter-sm">
                     <q-input ref="filter" filled v-model="filter" label="Filter Snapshot">
                         <template v-slot:append>
                             <q-icon v-if="filter !== ''" name="clear" class="cursor-pointer" @click="resetFilter" />
                         </template>
                     </q-input>
-                    <q-tree :nodes="treeModel" node-key="label" :filter="filter" no-connectors />
+                    <q-tree :nodes="treeModel" node-key="label" :filter="filter">
+
+                    </q-tree>
+
                 </div>
             </q-drawer>
 
@@ -47,8 +47,10 @@
                             <td>{{snapshot.name}}</td>
                         </tr>
                         <tr>
-                            <td><b>ID : </b></td>
-                            <td>{{snapshot.ID}}</td>
+                            <td><b>Active : </b></td>
+                            <td>
+                                <q-badge color="green" class="q-ml-sm" v-if="snapshot.active">active</q-badge>
+                            </td>
                         </tr>
                     </table>
                     <div class="row">
@@ -63,23 +65,16 @@
                             <q-table :data="toolkitData" :columns="toolkitColumns" row-key="name" />
                         </div>
                     </div>
-
-
-
                 </div>
                 <div class="q-pa-md fit row wrap justify-center items-center content-start" v-if="showLogin">
-                    <h1>{{debugMsg}}</h1>
-
                     <q-form @submit="loadTreeModel" class="q-gutter-md" style="min-width: 400px;">
                         <q-input filled v-model="bpm_url" label="BPM URL" hint="http://host:port"></q-input>
                         <q-input filled v-model="username" label="Username" hint="IBM BPM login name"></q-input>
                         <q-input filled type="password" v-model="password" label="Password"></q-input>
-
                         <div>
                             <q-btn label="Get Details" type="submit" color="primary"></q-btn>
                         </div>
                     </q-form>
-
                 </div>
             </q-page-container>
     </div>
@@ -126,6 +121,10 @@
                             app.children = [];
                             app.installedSnapshots.map((snapshot) => {
                                 snapshot.label = snapshot.name;
+                                if (snapshot.active) {
+                                    snapshot['body'] = "story";
+                                }
+                                snapshot.label += snapshot.active ? "(Active)" : "";
                                 snapshot.app = app;
                                 snapshot.expandable = false;
                                 snapshot.children = [];
@@ -214,11 +213,12 @@
                     ],
                     envData: [],
                     treeModel: [{
-                        label: "Application", children: [
+                        label: "Application",
+                        icon: "widgets", children: [
                         ]
                     },
                     {
-                        label: "Toolkits", children: []
+                        label: "Toolkits", icon: "settings", children: []
                     }]
                 }
             },
